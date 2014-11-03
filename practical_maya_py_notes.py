@@ -354,14 +354,114 @@ def is_type(node, typename):
 ## Writing the docstring and pseudocode, see PEP 257. If using sphinx for
 # documenting python code, using reST inside docstrings is supported.
 
-# Writing skeletonutils.py
+
+## Writing skeletonutils.py
+
 
 ## Implementing an alternate pymel method for "setParent", safe_setparent
 # which may return error if the node is already under the passed in transform.
 
-# Using nested functions or closures
+
+## Using nested functions or closures
 
 
+## Writing character creator. Try to maximise function reuse and write functions
+# which do one thing at a time. See the code repository.
 
 
+## Defining performance
+
+# Type 1
+def remove_selected(objs):
+... return [item for item in objs if item not in pmc.selected()]
+
+def remove_selected_faster(objs):   # evaluate selected() once
+... selected = pmc.selected()
+... return [item for item in objs if item not in selected]
+
+# Type 2
+def get_type_hierarchy(typename):
+... node = pmc.createNode(typename)
+... result = node.nodeType(inherited=True)
+... pmc.delete(node)
+... return result
+
+>>> get_type_hierarchy('joint')
+[u'containerBase', u'entity', u'dagNode', u'transform', u'joint']
+
+def get_type_hierarchy_faster(typename):    # Use caching
+... result = _hierarchy_cache.get(typename)
+... if result is None:
+...     node = pmc.createNode(typename)
+...     result = node.nodeType(inherited=True)
+...     pmc.delete(node)
+...     _hierarchy_cache[typename] = result
+... return result
+
+# Type 3
+j1 = pmc.joint()
+cluster = pmc.skinCluster(j1, pmc.polyCube()[0])
+def add_influences(cl, infls):
+    for infl in infls:
+        cl.addInfluence(infl)
+        
+def add_influences(cl, infls):  # SkinCluster.addInfluence() takes in a list of arguments
+    cl.addInfluence(infls)
     
+
+# Rewriting inner loops to use maya.cmds, since pymel may have to go through several layers 
+# of abstraction. Use API even possible, for even faster performance.
+
+# Use the standard library cProfile module for profiling python code.
+
+
+
+## CHAPTER 3
+
+## Exception types
+
+>>> ex = SystemError('a', 1)
+>>> [t.__name__ for t in type(ex).__mro__]
+['SystemError', 'StandardError', 'Exception', 'BaseException', 'object']
+>>> ex.args
+('a', 1)
+>>> dir(ex)
+['__class__', '__delattr__', ...'args', 'message']
+
+# Use the Exception class as the base exception type. 
+
+
+## Explaining the exc_info tuple
+
+## Only catch errors you can handle
+
+# Avoid partial mutations during an exception, which may leave the operation in an unresolved state.
+
+
+## Practical error handling in maya
+
+# Consider the following example with the fileTextureName being modified in a maya scene.
+for f in pmc.ls(type='file'):
+    f.ftn.set(f.ftn.get().lower())
+    
+Traceback (most recent call last):
+RuntimeError: setAttr: The attribute 'file2.fileTextureName' is locked or connected and cannot be modified.
+>>> [f.ftn.get() for f in pmc.ls(type='file')]
+[u'ftn0', u'FTN1', u'FTN2']
+
+# Avoiding mutation to address this problem cannot be done because of maya's design.
+
+# Second strategy of read-copy-update cannot be done since when a maya node is copied, it makes complex
+# changes to the scene. The read-copy-update pattern involves reading the value of some data, creating a 
+# copy of that data, changing that data, and updating the original value. It is commonly used as a 
+# synchronization mechanism (for example, between threads). It can also be used to ensure some data
+# is not left partially mutated in the case of an error, by ensuring that the original data is not 
+# changed unless the entire mutation succeeds.
+
+# The third strategy is to roll back any changes if any error occurs. Store the original value of
+# fileTextureName attribute and revert to it during an exception.
+
+# The last strategy is to use undo blocks and is the recommended method.
+
+
+
