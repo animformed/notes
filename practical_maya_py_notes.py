@@ -463,5 +463,202 @@ RuntimeError: setAttr: The attribute 'file2.fileTextureName' is locked or connec
 
 # The last strategy is to use undo blocks and is the recommended method.
 
+pmc.undoInfo(openChunk=True) # When used, all operations after this can be undoed in a single operation.
+try:
+	for f in pmc.ls(type='file'):
+		f.ftn.set(f.ftn.get().lower())
+	pmc.undoInfo(closeChunk=True)
 
+# Check the Error message first, as RuntimeError in pymel is ubiquitous.
+# We're doing this since we can't catch a locked attribute with an exception class.
+except RuntimeError as ex:	
+	pmc.undoInfo(closeChunk=True)
+	if ex.args[0].startswith('setAttr: The attribute '):
+		pmc.undo()
+
+# For all other errors.
+except Exception:
+	pmc.undoInfo(closeChunk=True)
+
+## Building a high-level exception handler.
+# The exception hook takes the top unhandled exception caught and sent by the interpreter.
+# It's not possible for exceptionhook to pass control back to the script.
+# The function to be defined for exceptionhook takes three arguments like in sys.exc_info().
+# The original function for sys.excepthook is available as sys.__excepthook__
+
+# Using sys.excepthook
+>>> 1 + '1'
+Traceback (most recent call last):
+TypeError: unsupported operand type(s) for +: 'int' and 'str'
+
+>>> import sys
+>>> def ehook(etype, evalue, tb):
+...     print 'Hello!'
+>>> sys.excepthook = ehook
+>>> 1 + '1'
+Hello!
+
+# In maya, the sys.excepthook is only available for mayapy and can't be used in the gui mode.
+# Instead, use the hook, maya.utils.formatGuiException. This can't be used in mayapy.
+
+import maya.utils
+def excepthook(tb_type, exc_object, tb, detail=2):
+	return 'Hello!'
+maya.utils.formatGuiException = excepthook
+
+# It accepts an additional "detail" argument. It should also return a string containing
+# the error message to be printed to the script editor. Normal sys.excepthook doesn't 
+# return anything.
+
+# To reset the default handler, assign maya.utils._formatGuiException.
+
+import maya.utils 
+
+def excepthook(etype, evalue, tb, detail=2):
+   s = maya.utils._formatGuiException(etype, evalue, tb, detail)
+   lines = [
+	   s,
+	   'An unhandled exception occurred.',
+	   'Please copy the error info above this message',
+	   'and a copy of this file and email it to',
+	   'mayasupport@robg3d.com. You should get a response',
+	   'in three days or less.'
+   return '\n'.join(lines)
+maya.utils.formatGuiException = excepthook
+
+# This will print the default error message and the custom message.
+
+
+# Implementing the custom error handler to check for the exception generated
+# from our script files. This will collect the system info and send an email 
+# in case of an exception.
+
+import os
+import platform
+import pymel.core as pmc
+import maya.utils
+from email.mime.text import MIMEText
+import smtplib
+
+LIB_DIR = _normalize(os.path.dirname(__file__))
+EMAIL_ADDR = 'mayasupport@robg3d.com'
+EMAIL_SERVER = 'localhost'
+
+# Store the original current exception hook. The _formatGuiException
+# is not stored directly since other running scripts may have modified 
+# formatGuiException and will malfunction.
+# When the module is imported, it stores the value of formatGuiException, 
+# which could have been the original _formatGuiException or something installed 
+# by another script.
+_orig_excepthook = maya.utils.formatGuiException
+
+def _normalize(p):
+	return os.path.normpath(os.path.abspath(p))
+
+def _collect_info():
+	lines = []
+	lines.append('Scene Info')
+	lines.append('	Maya Scene: ' + pmc.sceneName())
+	
+	lines.append('Maya/Python Info')
+	lines.append('  Maya Version: ' + pmc.about(version=True))
+	lines.append('  Qt Version: ' + pmc.about(qtVersion=True))
+	lines.append('  Maya64: ' + str(pmc.about(is64=True)))
+	lines.append('  PyVersion: ' + sys.version)
+	lines.append('  PyExe: ' + sys.executable)
+	
+	lines.append('Machine Info')
+	lines.append('  OS: ' + pmc.about(os=True))
+	lines.append('  Node: ' + platform.node())
+	lines.append('  OSRelease: ' + platform.release())
+	lines.append('  OSVersion: ' + platform.version())
+	lines.append('  Machine: ' + platform.machine())
+	lines.append('  Processor: ' + platform.processor())
+	
+	lines.append('Environment Info')
+	lines.append('  EnvVars')
+	for k in sorted(os.environ.keys()):
+		lines.append('	%s: %s' % (k, os.environ[k]))
+	lines.append('	SysPath')
+	for p in sys.path:
+		lines.append('		' + p)
+	return lines
+	
+def _send_mail(body):
+	msg = MIMEText(body)
+	msg['To'] = EMAIL_ADDR
+	msg['From'] = EMAIL_ADDR
+	msg['Subject'] = 'Maya Tools Error'
+	server = smtplib.SMTP(EMAIL_SERVER)
+	try:
+		server.sendmail(msg['From'], msg['To'], msg.as_string())
+	finally:
+		server.quit()
+
+def _handle_our_exc(etype, evalue, tb, detail):
+	s = maya.utils._formatGuiException(etype, evalue, tb, detail)
+	body = [s]
+	body.extend(_collect_info())
+	_send_email('\n'.join(body))
+	lines = [s,
+			'An unhandled exception occurred.',
+			'An error report was send to ',
+			EMAIl_ADDR + ' with details about the error.']
+	
+	return '\n'.join(lines)
+	
+def _is_important_tb(tb):
+	while tb:
+		codepath = tb.tb_frame.f_code.co_filename
+		# Check the directory for the script source in the stack trace,
+		# ad see if it matches with our library path.
+		if _normalize(codepath).startswith(LIB_DIR):
+			return True
+		tb  = tb.tb_next
+		
+	return False
+	
+def excepthook(etype, evalue, tb, detail=2):
+	result = _orig_excepthook(etype, evalue, tb, detail)
+	if _is_important_tb(tb):
+		result = _handle_our_exc(etype, evalue, tb, detail)
+	return result
+	
+maya.utils.formatGuiException = excepthook
+
+# Another way to see if the exception is generated from our script source is
+# to set a module level __author__ attribute on all of files and key 
+# off of that. All of the scripts will have the following line at the
+# module level.
+
+__author__ = 'rob.galanakis@gmail.com'
+
+# Then the "_is_important_tb" will look like as follows:
+
+def _is_important_tb(tb):
+	while tb:
+		auth = tb.tb_frame.f_globals.get('__author__')
+		
+		if auth == __author__:
+			return True
+		
+		tb = tb.tb_next
+		
+	return False
+	
+
+## If you're writing multiple tools, make sure that excepthandling is imported
+# early on in each of the tools.
+
+## You can also add a user interface to the error reporting.
+
+## Beyond error reporting via email, you can use taks management system as
+# jira.com or trello.com
+
+## You can also check out the traceback2 project at https://code.google.com/p/traceback2/
+
+## Check out the open source sentry server, http://sentry.readthedocs.org/ and 
+# the raven client http://raven.readthedocs.org/
+
+## See pg.108 for using logging for error reporting.
 
