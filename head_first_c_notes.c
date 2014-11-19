@@ -733,7 +733,40 @@ To generate makefiles, you can also use a tool called 'autoconf' at http://www.g
 To see the other options for gnu 'make', see its manual at http://tinyurl.com/yczmjx
 
 
-    
+PREPROCESSOR
+*************
+
+- Creating your own constants and macros with the #define statement
+- Building your own library files with the #include statement
+- Making more powerful programs with the conditional #ifdef, #endif, #else, and #ifndef Statements
+
+Constants for define -
+#define	PI	3.141592654
+
+#define can be stated anywhere in the program, but they should be defined before it's referenced.
+Some programmers group #define inside a header file to be used.
+NULL pointer is defined under stddef.h
+They're also written in capital to distinguish them from variables. Another convention is to use a prefix "k".
+
+#define LEFT_SHIFT_8		<< 8
+
+Which can be used in, 
+
+x = y LEFT_SHIFT_8
+
+Also,
+
+#define AND		&&
+#define OR		||
+
+Arguments and macros for define-
+
+#define  IS_LEAP_YEAR(y)    y % 4 == 0  &&  y % 100 != 0  \
+                        ||  y % 400 == 0
+No space between ( and YEAR.
+
+#define SQUARE(x)	x * x
+
 STRUCTS, UNIONS AND BITFIELDS
 *****************************
 
