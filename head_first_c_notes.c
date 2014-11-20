@@ -740,6 +740,8 @@ PREPROCESSOR
 - Building your own library files with the #include statement
 - Making more powerful programs with the conditional #ifdef, #endif, #else, and #ifndef Statements
 
+#define
+=======
 Constants for define -
 #define	PI	3.141592654
 
@@ -766,6 +768,28 @@ Arguments and macros for define-
 No space between ( and YEAR.
 
 #define SQUARE(x)	x * x
+
+Now, to correctly evaluate -
+y = SQUARE(v + 1)
+
+You need to 
+#define SQUARE(x) ( (x) * (x) )
+
+Which would become, 
+
+y = ( (v + 1) * (v + 1) );
+
+So #define literally substitutes the argument x wherever it appears.
+
+
+Variable number of arguments to macros
+
+#define debugPrintf(...)	printf("DEBUG:" _ _VA_ARGS_ _);
+
+debugPrintf("Hello world!\n");
+debugPrintf("i = %i, j = %i\n", i, j);
+
+Look for # and ## operator in define if needed.
 
 STRUCTS, UNIONS AND BITFIELDS
 *****************************
