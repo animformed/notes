@@ -2,7 +2,8 @@ Getting started with C
 **********************
 
 
-Your program will start runing from the main(), which has a return type int. If is returns any other value except 0, it means there's a problem.
+Your program will start runing from the main(), which has a return type int. 
+If is returns any other value except 0, it means there's a problem.
 
 
 printf() is used to display or print formatted output. It replaces format characters with the values of variables.
@@ -71,7 +72,8 @@ if(!brad_on_phone){
 }
 
 
-Using just '&' and '|' will evaluate both conditions, but '&&' and '||' will often skip the second condition. They are also used to perform bitwise operations on individual bits of a number.
+Using just '&' and '|' will evaluate both conditions, but '&&' and '||' will often skip the second condition. 
+They are also used to perform bitwise operations on individual bits of a number.
                                                                                                                                                                                ------------------
 
 
@@ -141,8 +143,8 @@ Memory and pointers
 *******************
 
 
-Every time you declare a variable inside the main() function, it stays in the stack area of the memory. If it is declared outside any function or main(),
-it is stored in the globals section of memory.
+Every time you declare a variable inside the main() function, it stays in the stack area of the memory. 
+If it is declared outside any function or main(), it is stored in the globals section of memory.
 
 
 int y = 1;               // Global
@@ -216,7 +218,6 @@ You can also cast a pointer to an ordinary number:
 
 
 a = (long)p          // p is a pointer, a is a long variable.
-
 
 
 
@@ -335,9 +336,9 @@ STRINGS
 
 
 char tracks[][10] = {"StringAB",               // Array of arrays to store strings
-                          "StringB",
-                          "StringCEF",
-                          "StringD"};
+					  "StringB",
+					  "StringCEF",
+					  "StringD"};
 [] - Contains the pointers to individual strings.
 [80] - Contains the pointers to individual characters in each string. A size is specified here since, the strings have different number of characters.
 
@@ -658,11 +659,60 @@ gcc message_hider.c encrypt.c -o message_hider
 
 
 
+extern variables
+----------------
 
 If you want to share variables declared in a header file, use the extern built-in word:
 
+If you have three source files, source1.c, source2.c, source3.c, the keyword extern can 
+only be omitted in one spot throughout your source files.
 
-extern int passcode;          // Use can also a prefix for the variable name.
+If you want a variable to be accessed across multiple source files, declare it
+outside any function.
+
+// source1.c
+int var;
+
+If you don’t omit the keyword in any one spot, in exactly one place, you must assign the variable an initial value.
+That is, in source1.c, you can declare "extern int var;" as well.
+// source2.c
+extern int var = 0;
+
+// source3.c
+extern int var;
+
+
+static variables
+----------------
+
+If you want a global variable to be accessible inside a module but to be used an external variable,
+use the keyword static.
+
+static int var = 0;
+
+
+
+typedef statement
+-----------------
+
+typedef int Counter;	// Counter is an alternative name to the data type int
+Counter j, n;
+
+#define Counter int;		// Will also work for above
+
+typedef char LineBuf[81];	// Cannot be done with #define
+LineBuf text, inputLine;	// Same as char text[81], inputLine[81];
+
+typedef char* StringPtr;
+StrinPtr buffer;
+
+
+typedef struct {
+	float x;
+	float y;
+} Point;
+
+Point origin = {0.0, 0.0}, currentPoint;
 
 
 
@@ -790,6 +840,56 @@ debugPrintf("Hello world!\n");
 debugPrintf("i = %i, j = %i\n", i, j);
 
 Look for # and ## operator in define if needed.
+
+Conditional compilation
+=======================
+
+#ifdef	UNIX					// If UNIX has been defined
+#	define	DATADIR	"/usn1/data"
+#else
+#	define	DATADIR	"\usr\data"
+#endif
+
+ - OR - 
+ 
+ #if defined (WINDOWS) || defined (WINDOWSNT)
+ #	define BOOT_DRIVE "C:/"
+ #else
+ #	define BOOT_DRIVE "D:/"
+ #endif
+ 
+The symbol UNIX can be defined as
+
+#define	UNIX 1
+#define	UNIX
+
+Or with the compiler, to define a name to the preprocessor
+gcc -D UNIX program.c
+gcc -D GNUDIR=/c/gnustep program.c
+
+---------------
+
+#ifndef	_MYSTUDIO_H		// Similar to #ifdef, but checks if a symbol is not defined, then the lines below are processed.
+#define _MYSTUDIO_H
+...
+#endif	/* _MYSTUDIO_H */
+
+----------------
+
+#if		OS == 1
+	...				// Processed if the previous expression evaluates to nonzero
+#elif	OS == 2		
+	...
+#elif	OS == 3
+	...
+#else
+	...
+#endif
+
+-----------------
+
+#undef LINUX	// Removes the definition of LINUX. #ifdef LINUX evaluates as false.
+
 
 STRUCTS, UNIONS AND BITFIELDS
 *****************************
@@ -948,13 +1048,26 @@ Enums
 Data type that can store a list of symbols/keys with numerical ordered values.
 
 
-enum colors(RED, GREEN, PUCE);       // Here RED = 0, GREEN = 1, PUCE = 2
+enum colors {RED, GREEN, PUCE};       // Here RED = 0, GREEN = 1, PUCE = 2
 
 
 Any variable that is defined with a type of enum colors can only be set to one of the values from the enum list.
 
 
 enum colors favourite = PUCE;
+
+enum  direction  {up, down, left = 10, right};		// up=0 and right=11
+
+enum  switch  {no=0, off=0, yes=1, on=1};
+
+Explicitly assigning a value to an enum data type can be donw with type casting
+
+enum month thisMonth;
+thisMonth (enum month) (monthValue - 1);	//monthValue is an int.
+
+If you subsequently need to change the value of this, you must change it only in the 
+place where the enumeration is defined. If you make assumptions based on the actual 
+value of the enumerated data type, you defeat this benefit of using an enumeration.
 
 
 ----------------------------------------------------------------------------------------------------------------------------
@@ -1715,17 +1828,22 @@ Data stream descriptors for a program is fixed by default, where:
 
 You can do redirection using the command-line by using the > and < operators:
 
+Redirecting standard output to output.txt and standard error to errors.log:
 
-$ ./myprog > output.txt 2> errors.log
+$ ./myprog > output.txt 2> errors.log	
 
 
 On unix-based systems, you can redirect standard error to standard output:
 
-
 $ ./myprog 2>&1                // &1 means to the standard input
 
 
+Taking input from text file, standard input.
 
+$ ./myprog < input1.txt > output.txt
+
+The information must be entered in the text file the same way that it would be typed
+in, to be read by scanf().
 
 For a custom data / file stream:
 
@@ -2255,6 +2373,81 @@ int main()
 
 
 
+The null statement
+------------------
+
+It is often used by programmers in 'while', 'for' and 'do' loops.
+
+// To store all the characters read in from the standard input into the character array.
+while ( (*text++ = getchar()) != '\n' )
+	;
+	
+// To print character c from standard input to standard output until EOF is reached.
+for ( ; (c = getchar ()) != EOF; putchar(c) )
+	;
+
+// To count the number of characters from standard input until EOF is reached.
+for (count = 0; getchar() != EOF; ++count)
+	;
+	
+// To copy the character string pointed by 'from' to 'to'.
+while((*to++ = *from++) != '\0')
+	;
+	
+// OR
+
+while (*from != '\0')
+	*to++ = *from++;
+
+*to = '\0';
+
+
+File operations
+---------------
+
+FILE* inputFile;
+
+fopen("<path string>", "<mode string>")
+-----
+
+IF fopen succeeds, it will return a valid file pointer or NULL.
+
+if ((inputFile = fopen("data", "r")) == NULL)
+	printf("*** data could not be opened.\n");
+
+Read modes:
+
+r - Read only
+w - Write
+a - Append
+r+ - Read update, for both reading and writing
+w+ - Write update, the contents are destroyed, and if file doesn't exist, it's created.
+a+ - Opens an existing file or creates one if it doesn't exist. Read operations can occur anywhere, write can only add to the end.
+
+Under windows, always read binary files, a "b" must be added to the end of the mode string.
+
+
+getc(FILE*) and putc("\n", FILE*) reads and puts a single character with every call. 
+---------------------------------
+They also detect EOF. They return int(s).
+
+fclose() - Close a file.
+--------
+
+feof(*FILE) - Returns non-zero if an attempt is made to read past the EOF (not same as read).
+-----------
+
+fprintf
+
+
+
+
+
+ 
+	
+
+
+	
 
 
 
