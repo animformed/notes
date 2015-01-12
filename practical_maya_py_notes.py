@@ -626,6 +626,15 @@ def excepthook(etype, evalue, tb, detail=2):
 	
 maya.utils.formatGuiException = excepthook
 
+# Use a background thread to send the email.
+
+def _send_email_in_background(body):
+	t = threading.Thread(target=_send_email, args=(body,),
+	name = 'send_email_in_background')
+	t.start()
+# You would call _send_email_in_background instead of _send_email inside
+# the _handle_our_exc function.
+
 # Another way to see if the exception is generated from our script source is
 # to set a module level __author__ attribute on all of files and key 
 # off of that. All of the scripts will have the following line at the
@@ -661,4 +670,107 @@ def _is_important_tb(tb):
 # the raven client http://raven.readthedocs.org/
 
 ## See pg.108 for using logging for error reporting.
+
+import logging
+log_filenames = set()	# Avoid duplicates
+for logger in logging.Logger.manager.loggerDict.values():
+	for handler in getattr(logger, 'handlers', []):
+		try:
+			log_filenames.add(handler.baseFilename)
+		except AttributeError:
+			pass
+			
+# To echo the maya script editor to a file and include that in your e-mail.
+pmc.scriptEditor(writeHistory=True, historyFilename='.log')
+
+
+## CHAPTER 4
+
+# Leveraging Context managers and decorators in maya
+
+## Decorator is a basically smarter syntax to assign a wrapper to an existing function,
+# to extend around its functionality
+
+def announce(func):
+	def inner(*args, **kwargs):
+		print "Calling", func.__name__
+		result = func(*args, **kwargs)
+		print 'Result', result
+		return result	# (2)
+	return inner	# (1)
+
+# Function to be decorated
+def subtract(a, b):		
+	return a - b
+
+>>> announce(subtract)(1, 2)
+Calling subtract
+Result -1
+
+>>> call = announce(subtract)	# (1) is returned
+>>> value = call(1, 2)		# (2) is returned
+
+
+# The subtract can now be decorated as:
+
+@announce
+def subtract(a, b):		
+	return a - b
+	
+>>> subtract(1, 2)
+Calling subtract
+Result -1
+
+# Using decorator to preserve selection for an exporter function in maya
+# 
+
+def preserve_selection(func):
+	# Decorator / wrapper
+	def inner(*args, **kwargs):
+		sel = pymel.core.selected()
+		result = func(*args, **kwargs)
+		pymel.core.select(sel)
+		return result
+	return inner
+		
+@preserve_selection
+def export_char_meshes(path):
+	"Perform the operation which modifies selection"
+	
+	
+## Using context managers to deal with exceptions
+
+# Writing the undo_chunk context manager
+
+import pymel.core as pc
+
+class undo_chunk(object):
+	def __enter__(self):
+		pc.undoInfo(openChunk=True)
+	def __exit__(self):
+		pc.undoInfo(closeChunk=True)
+		
+with undo_chunk():		# Usage
+	pymel.core.joint(), pymel.core.joint()
+
+>>> pymel.core.undo()
+>>> pymel.core.ls(type='joint')
+
+
+# Writing undo_on_error context manager.
+
+class undo_on_error(object):
+	def __enter__(self):
+		pymel.core.undoInfo(openChunk=True)
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		pymel.core.undoInfo(closeChunk=True)
+		if exc_val is not None:
+			pymel.core.undo()
+
+with undo_on_error():	# Usage
+	for f in pymel.core.ls(type='file'):
+		f.ftn.set(f.ftn.get().lower())
+
+>>> [f.ftn.get() for f in pymel.core.ls(type='file')]
+[u'FTN0', u'FTN1', u'FTN2']
 
