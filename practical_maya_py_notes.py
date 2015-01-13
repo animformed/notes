@@ -774,3 +774,10 @@ with undo_on_error():	# Usage
 >>> [f.ftn.get() for f in pymel.core.ls(type='file')]
 [u'FTN0', u'FTN1', u'FTN2']
 
+
+# Using decorators or context managers - 
+When calling a function and to have the setup and teardown to happen every time something
+is called, you should prefer to use a decorator. If you want the caller to control the setup
+and teardown (as we would expect for undo), use a context manager.
+
+It may be required to have the same functionality as a context manager and a decorator.
