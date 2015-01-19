@@ -721,7 +721,7 @@ def subtract(a, b):
 Calling subtract
 Result -1
 
-# Using decorator to preserve selection for an exporter function in maya
+## Using decorator to preserve selection for an exporter function in maya
 # 
 
 def preserve_selection(func):
@@ -775,9 +775,220 @@ with undo_on_error():	# Usage
 [u'FTN0', u'FTN1', u'FTN2']
 
 
-# Using decorators or context managers - 
-When calling a function and to have the setup and teardown to happen every time something
-is called, you should prefer to use a decorator. If you want the caller to control the setup
-and teardown (as we would expect for undo), use a context manager.
+## Using decorators or context managers - 
+# When calling a function and to have the setup and teardown to happen every time something
+# is called, you should prefer to use a decorator. If you want the caller to control the setup
+# and teardown (as we would expect for undo), use a context manager.
 
-It may be required to have the same functionality as a context manager and a decorator.
+# It may be required to have the same functionality as a context manager and a decorator.
+
+# Various context managers in maya
+
+# set_file_prompt. file command's prompt sets a maya state, not like a command flag.
+#
+class set_file_prompt(object):
+	def __init__(self, state):
+		self.state = state
+		self.oldState = None
+	def __enter__(self):
+		self.oldState = cmds.file(q=True, prompt=True)
+		cmds.file(prompt=self.state)
+	def __exit__(self, *args):
+		cmds.file(prompt=self.oldState)
+		
+# at_time. Context to maintain the current time in maya, if a command modifies it
+#
+class at_time(object):
+	def __init__(self, time):
+		self.time = time
+		self.oldTime = None
+	def __enter__(self):
+		self.oldTime = cmds.currentTime(q=True)
+		cmds.currentTime(self.time)
+	def __exit__(self):
+		cmds.currentTime(self.oldTime)
+		
+# with_unit context manager, uses cmds.currentUnit(linear=, angle=, time=)
+# to change and restore them.
+
+# set_renderlayer_active context manager changes and restores the current render layer.
+
+# set_namespace_active context manager makes a namespace active for a block of code.
+
+# denormalized_skin temporarily toggles the weight normalization and set max influences
+# when modifying the skin weighting in a block of code. To speed up the process, you can 
+# create a cache of skinClusters that are currently denormalized.
+
+
+## Creating a decorator to record metrics
+
+# Use a decorator to get a unique key for callable item. Record the time it takes to 
+# invoke the callable item. Report the time.
+
+# Getting a unique key for function/method.
+import types
+
+def _getkey(func):
+	if isinstance(func, types.FunctionType):
+		return '%s.%s' % (func.__module__, func.__name__)
+	if isinstance(func, types.MethodType):
+		return '%s.%s.%s' % (func.__module__,
+							func.im_class.__name__,
+							func.__name__)
+	raise TypeError('%s must be a function or a method' % func)
+
+# Reporting duration
+import errno, traceback
+
+def _report_duration(key, duration):
+	global _reporting_enabled
+	if not _reporting_enabled:
+		return
+	
+	try:
+		with open('durations.txt', 'a') as f:
+			f.write('%s: %s\n' % (key, duration))
+	except OSError as ex:
+		if ex.errno == errno.EACCES:
+			print 'durations.txt in use, cannot record'
+		else:	# Other fatal error
+			_reporting_enabled = False
+			traceback.print_exc()
+			print 'Disabling metrics recording.'
+
+# decorator
+import time
+
+def record_duration(func):
+	
+	key = _getkey(func)
+	
+	def inner(*args, **kwargs):
+		starttime = time.clock()
+		
+		result = func(*args, **kwargs)
+		
+		endtime = time.clock()
+		duration = endtime - starttime
+		_report_duration(key, duration)
+		
+		return result
+		
+	return inner
+
+@profiling.record_duration
+def export_scene():
+	# code
+	
+	
+## Defining decorators with arguments
+
+def deco_using_args(key):
+	def _deco(func):
+		def inner(*args, **kwargs):
+			print 'Hello from', key
+			return func(*args, **kwargs)
+		return inner
+	return _deco
+
+class deco_using_args(object):
+	def __init__(self, key):
+		self.key = key
+	def __call__(self, func):
+		def inner(*args, **kwargs):
+			print 'Hello from', key
+			return func(*args, **kwargs)
+		return inner
+		
+# Use
+@deco_using_args('func deco')
+def decorated_func():
+	#code
+	return
+	
+## Decorating pymel
+
+# Decorating pymel is difficult since so many pymel calls are dynamically dispatched,
+# use the reassignment pattern of decoration, decorating and replacing methods,
+
+DagNode.setTranslation = announce(DagNode.setTranslation)
+
+# Avoid decorating pymel as much as possible.
+
+
+## Stacking decorators
+
+@deco1	# prints deco1
+@deco2	# prints deco2
+def func():
+	print 'inside func'
+>>> func()
+deco1
+deco2
+inside func
+
+>>> f = deco1(deco2(func))
+>>> f()
+deco1
+deco2
+inside func
+
+
+## See - https://wiki.python.org/moin/PythonDecoratorLibrary
+## https://pypi.python.org/pypi/wrapt
+
+
+
+## GUI
+
+# Write a qtshim module as a helper to import the QtCore, QtGui and Signal
+# module based on whether PySide or PyQt is available on the system.
+
+# qtshim.py
+
+try:
+	from PySide import QtCore, QtGui
+	import shiboken
+	Signal = QtCore.Signal
+	
+	def _getcls(name):
+		result = getattr(QtGui, name, None)
+		if result is None:
+			result = getattr(QtCore, name, None)
+		return result
+	
+	def wrapinstance(ptr):
+		"""
+		Converts a pointer (int or long) into the 
+		concrete PyQt/PySide object it represents.
+		"""
+		ptr = long(ptr)
+		qobj = shiboken.wrapInstance(ptr, QtCore.QObject)
+		metaobj = qobj.metaObject()
+		realcls = None
+		while realcls is None:
+			realcls = _getcls(metaobj.className())
+			metaobj = metaobj.superClass()
+		return shiboken.wrapInstance(ptr, realcls)
+
+except ImportError:
+	from PyQt4 import QtCore, QtGui
+	Signal = QtCore.pyqtSignal
+	import sip
+	def wrapinstance(ptr):
+		return sip.wrapinstance(long(ptr), QtCore.QObject)
+		
+# Now we can use it for writing with PySide or PyQt
+
+from qtshim import QtGui, QtCore, Signal
+
+def create_window():
+	win = QtGui.QMainWindow()
+	return win
+	
+if __name__ == '__main__':
+	app = QtGui.QApplication([])
+	win = create_window()
+	win.show()
+	app.exec_()
+	
